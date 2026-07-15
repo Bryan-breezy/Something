@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 PDF Scraping Automation Tool
 Extracts data from PDFs based on user-defined requirements and exports to Excel.
@@ -39,6 +40,19 @@ def parse_args():
         help="Path to a saved JSON requirements profile. Skips interactive "
              "requirement setup entirely, enabling unattended/scheduled runs."
     )
+    parser.add_argument(
+        "--no-ocr",
+        action="store_true",
+        help="Disable OCR fallback for scanned/image-based PDFs (faster, but "
+             "such PDFs will be skipped since no text can be extracted)."
+    )
+    parser.add_argument(
+        "--workers", "-w",
+        type=int,
+        default=None,
+        help="Max parallel worker processes for PDF text extraction "
+             "(default: number of CPU cores)."
+    )
     return parser.parse_args()
 
 
@@ -75,7 +89,10 @@ def main():
 
     # Create and run scraper
     try:
-        scraper = PDFScraper(pdf_folder, output_excel, profile_path=args.profile)
+        scraper = PDFScraper(
+            pdf_folder, output_excel, profile_path=args.profile,
+            enable_ocr=not args.no_ocr, max_workers=args.workers
+        )
         scraper.run()
     except KeyboardInterrupt:
         print("\n\n  Process interrupted by user.")
