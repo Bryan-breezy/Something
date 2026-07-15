@@ -13,9 +13,18 @@ def main():
     # Get folder path from user
     while True:
         pdf_folder = input("\n Enter the path to the folder containing PDF files: ").strip()
-        if pdf_folder:
-            break
-        print(" Please enter a valid folder path.")
+        if not pdf_folder:
+            print(" Folder path cannot be empty. Please try again.")
+            continue
+        from pathlib import Path
+        if not Path(pdf_folder).is_dir():
+            print(f" Error: Folder '{pdf_folder}' not found or is not a directory. Please enter a valid path.")
+            continue
+        import os
+        if not os.access(pdf_folder, os.R_OK):
+            print(f" Error: No read permissions for folder '{pdf_folder}'. Please check permissions.")
+            continue
+        break
     
     # Get output Excel path
     default_output = "extracted_pdf_data.xlsx"
@@ -30,9 +39,17 @@ def main():
     except KeyboardInterrupt:
         print("\n\n  Process interrupted by user.")
         sys.exit(1)
+    except FileNotFoundError as e:
+        print(f"\n Error: The specified folder or file was not found: {e}")
+        logging.error(f"File not found error: {e}", exc_info=True)
+        sys.exit(1)
+    except PermissionError as e:
+        print(f"\n Error: Permission denied to access the folder or file: {e}")
+        logging.error(f"Permission error: {e}", exc_info=True)
+        sys.exit(1)
     except Exception as e:
-        print(f"\n An unexpected error occurred: {str(e)}")
-        logging.error(f"Unexpected error: {str(e)}", exc_info=True)
+        print(f"\n An unexpected error occurred: {e}")
+        logging.error(f"Unexpected error: {e}", exc_info=True)
         sys.exit(1)
 
 if __name__ == "__main__":
