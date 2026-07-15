@@ -7,7 +7,8 @@ from utils import setup_logging, print_header
 class PDFScraper:
     """Main orchestrator for PDF scraping automation."""
     
-    def __init__(self, pdf_folder_path: str, output_excel_path: str, profile_path: str = None):
+    def __init__(self, pdf_folder_path: str, output_excel_path: str, profile_path: str = None,
+                 enable_ocr: bool = True, max_workers: int = None):
         """
         Initialize the PDF scraper.
         
@@ -16,10 +17,15 @@ class PDFScraper:
             output_excel_path: Path where Excel file will be saved
             profile_path: Optional path to a saved JSON requirements profile,
                 enabling the scraper to run without interactive prompts
+            enable_ocr: Whether to fall back to OCR for scanned/image PDFs
+            max_workers: Max parallel worker processes for text extraction
+                (defaults to os.cpu_count() when None)
         """
         self.pdf_folder_path = Path(pdf_folder_path)
         self.output_excel_path = output_excel_path
         self.profile_path = profile_path
+        self.enable_ocr = enable_ocr
+        self.max_workers = max_workers
         self.processor = None
         self.exporter = ExcelExporter(output_excel_path)
     
@@ -38,7 +44,9 @@ class PDFScraper:
             return
         
         # Initialize processor
-        self.processor = PDFProcessor(str(self.pdf_folder_path))
+        self.processor = PDFProcessor(
+            str(self.pdf_folder_path), enable_ocr=self.enable_ocr, max_workers=self.max_workers
+        )
         
         # Process all PDFs
         extracted_data = self.processor.process_all_pdfs(self.profile_path)
