@@ -17,10 +17,10 @@ class PatternDetector:
         },
         'transaction': {
             'patterns': [
-                r'\bTXN:\s*([A-Z0-9-]+)\b',
-                r'\bTRANSACTION:\s*([A-Z0-9-]+)\b',
-                r'\bTRX:\s*([A-Z0-9-]+)\b',
-                r'\b(?=[A-Z0-9]*\d)[A-Z0-9]{8,}\b',
+                r'TXN[:\s]*([A-Z0-9-]+)',
+                r'TRANSACTION[:\s]*([A-Z0-9-]+)',
+                r'TRX[:\s]*([A-Z0-9-]+)',
+                r'\b[A-Z0-9]{8,}\b',
             ],
             'display_name': 'Transaction Code'
         },
@@ -38,9 +38,9 @@ class PatternDetector:
         },
         'invoice': {
             'patterns': [
-                r'\bINV:\s*([A-Z0-9-]+)\b',
-                r'\bINVOICE:\s*([A-Z0-9-]+)\b',
-                r'\bINVOICE\s*#\s*([A-Z0-9-]+)\b',
+                r'INV[:\s]*([A-Z0-9-]+)',
+                r'INVOICE[:\s]*([A-Z0-9-]+)',
+                r'INVOICE\s*#\s*([A-Z0-9-]+)',
                 r'\bINV-\d{6,}\b',
             ],
             'display_name': 'Invoice Number'
@@ -55,10 +55,13 @@ class PatternDetector:
         },
         'code': {
             'patterns': [
+                # Alphanumeric codes (letters + digits mixed) only - a bare
+                # \d{6,} was removed here because it false-matched phone
+                # numbers, dates, and transaction codes too often. If you
+                # need a pure-numeric code, use the regex option manually.
                 r'\b[A-Z]{2,5}[0-9]{4,}\b',
-                r'\b[0-9]{6,}\b',
             ],
-            'display_name': 'Code'
+            'display_name': 'Code (alphanumeric)'
         },
         'phone': {
             'patterns': [
@@ -97,16 +100,7 @@ class PatternDetector:
         try:
             matches = re.findall(pattern, text, re.IGNORECASE)
             if matches and isinstance(matches[0], tuple):
-                flattened = []
-                for m in matches:
-                    if not m:
-                        continue
-                    if isinstance(m, tuple):
-                        selected = next((group for group in m if group), m[0])
-                        flattened.append(selected)
-                    else:
-                        flattened.append(m)
-                return flattened
+                matches = [m[0] if m[0] else m[1] for m in matches if m]
             return matches
         except re.error:
             return []
