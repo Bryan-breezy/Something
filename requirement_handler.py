@@ -40,12 +40,13 @@ class RequirementHandler:
     def _handle_item_input(self, item_name: str, sample_text: str):
         """Handle input for a single search item."""
         print(f"\nHow would you like to find '{item_name}'?")
-        print("1.  Enter a regex pattern (recommended for codes/references)")
-        print("2.  Enter keywords to search for")
-        print("3.  Auto-detect common pattern")
-        print("4.   Preview PDF content to help decide")
-    
-        choice = input("\nChoose option (1/2/3/4): ").strip()
+            print("1.  Enter a regex pattern (recommended for codes/references)")
+            print("2.  Enter keywords to search for")
+            print("3.  Auto-detect common pattern")
+            print("4.  Test a regex pattern on sample text")
+            print("5.  Preview PDF content to help decide")
+        
+        choice = input("\nChoose option (1/2/3/4/5): ").strip()
         
         if choice == '1':
             self._handle_regex_input(item_name, sample_text)
@@ -54,9 +55,11 @@ class RequirementHandler:
         elif choice == '3':
             self._handle_auto_detect(item_name, sample_text)
         elif choice == '4':
+            self._handle_regex_tester(sample_text)
+            self._handle_item_input(item_name, sample_text) # Recursively try again
+        elif choice == '5':
             self._handle_preview(sample_text)
-            # Recursively try again
-            self._handle_item_input(item_name, sample_text)
+            self._handle_item_input(item_name, sample_text) # Recursively try again
         else:
             print(" Invalid choice. Please select 1, 2, 3, or 4.")
             self._handle_item_input(item_name, sample_text)
@@ -71,7 +74,7 @@ class RequirementHandler:
             if sample_text:
                 test_matches = PatternDetector.test_pattern(pattern, sample_text)
                 if test_matches:
-                    print(f" Pattern found {len(test_matches)} match(es) in sample: {test_matches[:3]}")
+                    print(f"✓ Pattern found {len(test_matches)} match(es) in sample: {test_matches[:3]}")
                 else:
                     print("  Pattern didn't match anything in the sample PDF. You can still continue.")
             
@@ -107,6 +110,34 @@ class RequirementHandler:
         else:
             print(" Could not auto-detect. Please use regex or keyword option.")
     
+    def _handle_regex_tester(self, sample_text: str):
+        """Interactive regex tester."""
+        if not sample_text:
+            print(" No sample text available to test regex patterns.")
+            return
+
+        print_header(" REGEX TESTER")
+        print("Enter regex patterns to test against the sample PDF content. Type 'done' to exit.")
+        print(PatternDetector.get_regex_tips())
+
+        while True:
+            pattern = input("\nEnter regex pattern (or 'done' to exit): ").strip()
+            if pattern.lower() == 'done':
+                break
+            if not pattern:
+                print("❌ Pattern cannot be empty.")
+                continue
+
+            try:
+                matches = PatternDetector.test_pattern(pattern, sample_text)
+                if matches:
+                    print(f" Found {len(matches)} match(es) in sample: {matches[:5]}{'...' if len(matches) > 5 else ''}")
+                else:
+                    print("  No matches found for this pattern in the sample text.")
+            except re.error as e:
+                print(f" Invalid regex pattern: {e}")
+        print_header("End of Regex Tester")
+
     def _handle_preview(self, sample_text: str):
         """Handle PDF content preview."""
         if sample_text:
@@ -127,7 +158,7 @@ class RequirementHandler:
             include = input(f"   Must '{item['name']}' be present? (y/n): ").strip().lower()
             if include == 'y':
                 self.required_items.append(item['name'])
-                print(f"   ✓ '{item['name']}' is REQUIRED")
+                print(f"    '{item['name']}' is REQUIRED")
             else:
                 print(f"   → '{item['name']}' is OPTIONAL (will still extract if found)")
     
