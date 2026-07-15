@@ -1,3 +1,6 @@
+import json
+import logging
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 from pattern_detector import PatternDetector
 from utils import clean_key_name, print_header, print_subheader
@@ -12,7 +15,6 @@ class RequirementHandler:
     def get_user_requirements(self, sample_text: str = "") -> None:
         """Ask user for their search requirements."""
         print_header(" PDF SCRAPING REQUIREMENTS SETUP")
-        print("\nThis tool will help you extract specific information from PDFs.")
         print("You can search for items like: dates, transaction codes, references, amounts, etc.\n")
         
         # Get search patterns from user
@@ -36,33 +38,87 @@ class RequirementHandler:
         if self.requirement_patterns:
             self._get_required_items()
             self._print_summary()
+            self._offer_save_profile()
+
+    def _offer_save_profile(self):
+        """Offer to save the current requirements as a reusable profile."""
+        save = input("\n Save these requirements as a profile for reuse? (y/n): ").strip().lower()
+        if save == 'y':
+            default_path = "profile.json"
+            path = input(f"Enter profile file name (press Enter for '{default_path}'): ").strip()
+            if not path:
+                path = default_path
+            if self.save_profile(path):
+                print(f" Profile saved to '{path}'. Reuse it next time with --profile {path}")
+            else:
+                print(f" Could not save profile to '{path}'.")
+
+    def save_profile(self, path: str) -> bool:
+        """Save current requirement_patterns and required_items to a JSON profile."""
+        profile = {
+            "requirement_patterns": self.requirement_patterns,
+            "required_items": self.required_items,
+        }
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(profile, f, indent=2)
+            return True
+        except OSError as e:
+            logging.error(f"Error saving profile to {path}: {str(e)}")
+            return False
+
+    def load_profile(self, path: str) -> bool:
+        """Load requirement_patterns and required_items from a JSON profile."""
+        profile_path = Path(path)
+        if not profile_path.exists():
+            print(f" Profile file '{path}' not found.")
+            return False
+        try:
+            with open(profile_path, "r", encoding="utf-8") as f:
+                profile = json.load(f)
+            self.requirement_patterns = profile.get("requirement_patterns", [])
+            self.required_items = profile.get("required_items", [])
+            if not self.requirement_patterns:
+                print(f"  Profile '{path}' contains no search items.")
+                return False
+            print_header(f" Loaded profile: {path}")
+            print(f"Search items: {len(self.requirement_patterns)}")
+            if self.required_items:
+                print(f"Required: {', '.join(self.required_items)}")
+            print("=" * 60)
+            return True
+        except (json.JSONDecodeError, OSError) as e:
+            logging.error(f"Error loading profile from {path}: {str(e)}")
+            print(f" Could not load profile '{path}': {str(e)}")
+            return False
     
     def _handle_item_input(self, item_name: str, sample_text: str):
         """Handle input for a single search item."""
-        print(f"\nHow would you like to find '{item_name}'?")
+        while True:
+            print(f"\nHow would you like to find '{item_name}'?")
             print("1.  Enter a regex pattern (recommended for codes/references)")
             print("2.  Enter keywords to search for")
             print("3.  Auto-detect common pattern")
-            print("4.  Test a regex pattern on sample text")
-            print("5.  Preview PDF content to help decide")
-        
-        choice = input("\nChoose option (1/2/3/4/5): ").strip()
-        
-        if choice == '1':
-            self._handle_regex_input(item_name, sample_text)
-        elif choice == '2':
-            self._handle_keyword_input(item_name)
-        elif choice == '3':
-            self._handle_auto_detect(item_name, sample_text)
-        elif choice == '4':
-            self._handle_regex_tester(sample_text)
-            self._handle_item_input(item_name, sample_text) # Recursively try again
-        elif choice == '5':
-            self._handle_preview(sample_text)
-            self._handle_item_input(item_name, sample_text) # Recursively try again
-        else:
-            print(" Invalid choice. Please select 1, 2, 3, or 4.")
-            self._handle_item_input(item_name, sample_text)
+            print("4.  Preview PDF content to help decide")
+
+            choice = input("\nChoose option (1/2/3/4): ").strip()
+
+            if choice == '1':
+                self._handle_regex_input(item_name, sample_text)
+                return
+            elif choice == '2':
+                self._handle_keyword_input(item_name)
+                return
+            elif choice == '3':
+                self._handle_auto_detect(item_name, sample_text)
+                return
+            elif choice == '4':
+                self._handle_preview(sample_text)
+                # Loop back and ask again for the same item
+                continue
+            else:
+                print(" Invalid choice. Please select 1, 2, 3, or 4.")
+                continue
     
     def _handle_regex_input(self, item_name: str, sample_text: str):
         """Handle regex pattern input."""
@@ -95,14 +151,14 @@ class RequirementHandler:
                 'type': 'keyword',
                 'keywords': keyword_list
             })
-            print(f" Added '{item_name}' with keywords: {', '.join(keyword_list)}")
+            print(f"✓ Added '{item_name}' with keywords: {', '.join(keyword_list)}")
     
     def _handle_auto_detect(self, item_name: str, sample_text: str):
         """Handle auto-detection of patterns."""
         auto_item = PatternDetector.auto_detect(item_name, sample_text)
         if auto_item:
             self.requirement_patterns.append(auto_item)
-            print(f" Auto-detected pattern for '{item_name}' as {auto_item['display_name']}")
+            print(f"✓ Auto-detected pattern for '{item_name}' as {auto_item['display_name']}")
             if sample_text and auto_item['type'] == 'regex':
                 test_matches = PatternDetector.test_pattern(auto_item['pattern'], sample_text)
                 if test_matches:
@@ -110,34 +166,6 @@ class RequirementHandler:
         else:
             print(" Could not auto-detect. Please use regex or keyword option.")
     
-    def _handle_regex_tester(self, sample_text: str):
-        """Interactive regex tester."""
-        if not sample_text:
-            print(" No sample text available to test regex patterns.")
-            return
-
-        print_header(" REGEX TESTER")
-        print("Enter regex patterns to test against the sample PDF content. Type 'done' to exit.")
-        print(PatternDetector.get_regex_tips())
-
-        while True:
-            pattern = input("\nEnter regex pattern (or 'done' to exit): ").strip()
-            if pattern.lower() == 'done':
-                break
-            if not pattern:
-                print("❌ Pattern cannot be empty.")
-                continue
-
-            try:
-                matches = PatternDetector.test_pattern(pattern, sample_text)
-                if matches:
-                    print(f" Found {len(matches)} match(es) in sample: {matches[:5]}{'...' if len(matches) > 5 else ''}")
-                else:
-                    print("  No matches found for this pattern in the sample text.")
-            except re.error as e:
-                print(f" Invalid regex pattern: {e}")
-        print_header("End of Regex Tester")
-
     def _handle_preview(self, sample_text: str):
         """Handle PDF content preview."""
         if sample_text:
@@ -158,7 +186,7 @@ class RequirementHandler:
             include = input(f"   Must '{item['name']}' be present? (y/n): ").strip().lower()
             if include == 'y':
                 self.required_items.append(item['name'])
-                print(f"    '{item['name']}' is REQUIRED")
+                print(f"   ✓ '{item['name']}' is REQUIRED")
             else:
                 print(f"   → '{item['name']}' is OPTIONAL (will still extract if found)")
     
